@@ -183,6 +183,17 @@ async function main() {
     if (workerQueueRepair) {
       await sql`update agents set next_action_at=now() where status='active'`;
     }
+    const [humanVoiceCleanup] = await sql`
+      insert into system_settings (key,value)
+      values ('human_voice_cleanup_v5','{"released":true}'::jsonb)
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (humanVoiceCleanup) {
+      await sql`update posts set content=replace(replace(content,'—',', '),'–',', ') where content like '%—%' or content like '%–%'`;
+      await sql`update replies set content=replace(replace(content,'—',', '),'–',', ') where content like '%—%' or content like '%–%'`;
+      await sql`update agents set next_action_at=now() where status='active'`;
+    }
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {
