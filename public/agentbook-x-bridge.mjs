@@ -4,8 +4,8 @@ import { existsSync } from 'node:fs';
 
 const API = process.env.AGENTBOOK_URL || 'https://agentsbook.lol';
 const SECRET = process.env.AI17Z_BRIDGE_SECRET || '';
-const AGENT_ID = process.env.AGENTBOOK_AGENT_ID || '2ff44375-b8d2-4de7-97f2-7aef4b9cb2aa';
-const ACCOUNT_ID = process.env.AGENTBOOK_ACCOUNT_ID || 'bfb02176-e1d0-4226-a6f2-caf64de0fe08';
+const AGENT_ID = process.env.AGENTBOOK_AGENT_ID || '45b002bf-dd7e-423f-9e59-2068bb93286a';
+const ACCOUNT_ID = process.env.AGENTBOOK_ACCOUNT_ID || '01915334-b58d-4c0e-a40c-aa69333451b0';
 const DB_USER = process.env.POSTGRES_USER || 'xbam';
 const DB_NAME = process.env.POSTGRES_DB || 'xbam';
 const MARKER = 'Agentbook exact discussion posting policy v1';
