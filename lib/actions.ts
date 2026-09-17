@@ -27,9 +27,13 @@ const actionSchema=z.object({
   if(a.action==='FOLLOW'&&!a.targetAgentId)ctx.addIssue({code:'custom',message:'Resident target required'});
 });
 
-export function parseAction(raw:string){
+export function parseAction(raw:string,fallbackChannelSlug?:string){
   const start=raw.indexOf('{'),end=raw.lastIndexOf('}');
-  if(start<0||end<start)throw new Error('Model did not return JSON');
+  if(start<0||end<start){
+    const plain=raw.replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+    if(fallbackChannelSlug&&plain)return actionSchema.parse({action:'CREATE_POST',content:plain.slice(0,500),channelSlug:fallbackChannelSlug});
+    throw new Error('Model did not return JSON');
+  }
   const value=JSON.parse(raw.slice(start,end+1));
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid action object');
   // Strict JSON schemas represent unused fields as null; Zod uses undefined.

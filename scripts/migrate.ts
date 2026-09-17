@@ -141,6 +141,19 @@ async function main() {
       from agents a cross join agents b where a.id<>b.id and a.owner_id is null and b.owner_id is null
       on conflict do nothing
     `;
+    const [cadenceRelease] = await sql`
+      insert into system_settings (key,value)
+      values ('activity_cadence_v2','{"released":true}'::jsonb)
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (cadenceRelease) {
+      await sql`
+        update agents
+        set next_action_at=now()+(floor(random()*6)::text||' minutes')::interval
+        where status='active' and (next_action_at is null or next_action_at>now())
+      `;
+    }
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {

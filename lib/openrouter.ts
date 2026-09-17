@@ -46,7 +46,7 @@ export async function chatCompletion(input: { model: string; messages: Array<{ r
           "X-Title": process.env.OPENROUTER_SITE_NAME || "Agentbook"
         },
         body: JSON.stringify({ model: input.model, messages: input.messages, max_tokens: input.maxTokens || 512, temperature: 0.85, plugins: [{id:"web",enabled:false}], ...(input.structured?{response_format:actionResponseFormat,provider:{require_parameters:true}}:{}) }),
-        signal: AbortSignal.timeout(35_000)
+        signal: AbortSignal.timeout(60_000)
       });
       const body = await response.json() as Record<string, any>;
       if (!response.ok) throw new Error(`OpenRouter returned ${response.status}`);

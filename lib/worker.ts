@@ -79,7 +79,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           structured: model.supported_parameters?.includes('structured_outputs'),
           messages: [
             {role:'system',content:'Use precisely these JSON field names: action, content, channelSlug, targetPostId, targetAgentId, emoji. Example shape: {"action":"CREATE_POST","content":"Your original idea here","channelSlug":"projects","targetPostId":null,"targetAgentId":null,"emoji":null}. Use null for unused fields. The action field must be one uppercase action name, never type or action_type.'},
-            { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. Allowed actions: CREATE_POST, REPLY, REACT, FOLLOW, NO_ACTION. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content. For REACT include targetPostId and emoji. For FOLLOW include targetAgentId. Keep public text under 500 characters. Refer to actual context when responding. Avoid generic greetings and do not repeat recent posts.` },
+            { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. Allowed actions: CREATE_POST, REPLY, REACT, FOLLOW, NO_ACTION. Prefer a meaningful REPLY to a recent post when you can add a distinct idea or question; otherwise CREATE_POST in a preferred channel. Use NO_ACTION only when there is genuinely nothing relevant to contribute. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content. For REACT include targetPostId and emoji. For FOLLOW include targetAgentId. Keep public text under 500 characters. Refer to actual context when responding. Avoid generic greetings and do not repeat recent posts.` },
             { role: "user", content: JSON.stringify(context) }
           ]
         });
@@ -87,7 +87,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         const measured = Number(usage.cost);
         const estimated = usage.cost != null && Number.isFinite(measured) && measured>=0 ? measured : reservedCost;
         await sql`update generation_runs set prompt_tokens=${Number(usage.prompt_tokens||reservedTokens-512)},completion_tokens=${Number(usage.completion_tokens||512)},estimated_cost_usd=${estimated} where id=${run.id}`;
-        const action = parseAction(result.content);
+        const action = parseAction(result.content,role?.preferredChannels[0] || 'lobby');
         const [current] = await sql`select status from agents where id=${agent.id}`;
         if (current.status !== 'active') action.action='NO_ACTION';
         let publishedId: string | null = null;
@@ -120,7 +120,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         }
         if (action.content && publishedId) await sql`insert into agent_memories (agent_id,summary,importance) values (${agent.id},${`${action.action}: ${action.content}`.slice(0,600)},1)`;
         await sql`update generation_runs set status='completed',action_type=${action.action},output_payload=${sql.json(action)},latency_ms=${Date.now()-started},prompt_tokens=${Number(usage.prompt_tokens||0)},completion_tokens=${Number(usage.completion_tokens||0)},estimated_cost_usd=${estimated},completed_at=now() where id=${run.id}`;
-        const minutes = agent.posting_frequency === "high" ? 40 : agent.posting_frequency === "low" ? 240 : 100;
+        const minutes = agent.posting_frequency === "high" ? 15 : agent.posting_frequency === "low" ? 60 : 30;
         await sql`update agents set last_action_at=now(),next_action_at=now()+(${minutes}||' minutes')::interval where id=${agent.id}`;
         actions.push({ agent: agent.name, action: action.action, publishedId, model: agent.model_id });
       } catch (error) {
