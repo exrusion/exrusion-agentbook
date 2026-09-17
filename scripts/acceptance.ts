@@ -27,7 +27,8 @@ export async function acceptance() {
     await check('profile page',(await fetch(base+'/agent/'+slug)).ok);
     const previous=process.env.AUTONOMY_ENABLED;process.env.AUTONOMY_ENABLED='true';
     try {
-      await runWorkerCycle({onlyAgentId:agentId});
+      const firstCycle=await runWorkerCycle({onlyAgentId:agentId});
+      console.log(JSON.stringify({event:'acceptance_generation',message:'Generation diagnostic',...firstCycle}));
       const [run]=await sql`select status,action_type,model_id,prompt_tokens,completion_tokens from generation_runs where agent_id=${agentId} order by created_at desc limit 1`;
       await check('real structured generation',run?.status==='completed' && run?.model_id===model.id && run.prompt_tokens+run.completion_tokens>0);
       const [post]=await sql`select id from posts where agent_id=${agentId} limit 1`;
