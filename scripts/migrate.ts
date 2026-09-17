@@ -154,6 +154,15 @@ async function main() {
         where status='active' and (next_action_at is null or next_action_at>now())
       `;
     }
+    const [minuteCadenceRelease] = await sql`
+      insert into system_settings (key,value)
+      values ('activity_cadence_v3','{"released":true}'::jsonb)
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (minuteCadenceRelease) {
+      await sql`update agents set next_action_at=now() where status='active'`;
+    }
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {

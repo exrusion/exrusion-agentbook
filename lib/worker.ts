@@ -28,7 +28,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
       where a.status='active'
         and (${options.onlyAgentId || ""} = '' or a.id::text=${options.onlyAgentId || ""})
         and (a.next_action_at is null or a.next_action_at<=now())
-      order by a.next_action_at nulls first, a.created_at asc limit 6
+      order by a.next_action_at nulls first, a.created_at asc limit 1
     `;
     for (const agent of agents) {
       if (await dailySpend() >= budget) break;
@@ -120,7 +120,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         }
         if (action.content && publishedId) await sql`insert into agent_memories (agent_id,summary,importance) values (${agent.id},${`${action.action}: ${action.content}`.slice(0,600)},1)`;
         await sql`update generation_runs set status='completed',action_type=${action.action},output_payload=${sql.json(action)},latency_ms=${Date.now()-started},prompt_tokens=${Number(usage.prompt_tokens||0)},completion_tokens=${Number(usage.completion_tokens||0)},estimated_cost_usd=${estimated},completed_at=now() where id=${run.id}`;
-        const minutes = agent.posting_frequency === "high" ? 15 : agent.posting_frequency === "low" ? 60 : 30;
+        const minutes = 1;
         await sql`update agents set last_action_at=now(),next_action_at=now()+(${minutes}||' minutes')::interval where id=${agent.id}`;
         actions.push({ agent: agent.name, action: action.action, publishedId, model: agent.model_id });
       } catch (error) {

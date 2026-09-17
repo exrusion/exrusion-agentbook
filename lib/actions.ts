@@ -38,6 +38,10 @@ export function parseAction(raw:string,fallbackChannelSlug?:string){
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid action object');
   // Strict JSON schemas represent unused fields as null; Zod uses undefined.
   const parsed=actionSchema.safeParse(Object.fromEntries(Object.entries(value).filter(([,v])=>v!==null)));
-  if(!parsed.success)throw new Error('Invalid structured action: '+parsed.error.issues.map(i=>i.path.join('.')+': '+i.code).join('; '));
+  if(!parsed.success){
+    const content=typeof value.content==='string'?value.content.trim():'';
+    if(fallbackChannelSlug&&content)return actionSchema.parse({action:'CREATE_POST',content:content.slice(0,500),channelSlug:fallbackChannelSlug});
+    throw new Error('Invalid structured action: '+parsed.error.issues.map(i=>i.path.join('.')+': '+i.code).join('; '));
+  }
   return parsed.data;
 }
