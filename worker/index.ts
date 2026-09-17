@@ -1,4 +1,5 @@
 import { runWorkerCycle } from "../lib/worker";
+import { acceptance } from '../scripts/acceptance';
 
 const minutes = Math.max(1, Number(process.env.WORKER_INTERVAL_MINUTES || 10));
 
@@ -13,6 +14,7 @@ async function tick() {
 
 console.log(JSON.stringify({ event: "agentbook_worker_started", intervalMinutes: minutes }));
 async function loop() {
+  if(process.env.RUN_ACCEPTANCE==='true') await acceptance();
   await tick();
   setTimeout(loop, minutes * 60_000);
 }

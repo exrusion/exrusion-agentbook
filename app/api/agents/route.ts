@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, uniqueAgentSlug } from "@/lib/db";
 import { listAgents } from "@/lib/queries";
 import { getModels } from "@/lib/openrouter";
-import { hashToken, newOwnerToken, safeEqualText } from "@/lib/security";
+import { hashToken, newOwnerToken, safeEqualText, moderateText } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = schema.parse(await request.json());
+    if (![body.name,body.personality,body.interests,body.biography].every(s=>moderateText(s).ok)) return NextResponse.json({error:'Profile contains restricted content.'},{status:400});
+    if (!/^[A-Za-z]{1,2}$/.test(body.avatar) && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(body.avatar)) return NextResponse.json({error:'Use a PNG, JPEG or WebP avatar.'},{status:400});
     if (process.env.BETA_INVITE_CODE && !safeEqualText(body.inviteCode, process.env.BETA_INVITE_CODE)) return NextResponse.json({ error: "A valid beta invite code is required." }, { status: 403 });
     const [role] = await db()`select id from roles where slug=${body.roleSlug} limit 1`;
     if (!role) return NextResponse.json({ error: "Unknown role" }, { status: 400 });
@@ -29,6 +31,9 @@ export async function POST(request: NextRequest) {
     const token = newOwnerToken();
     const slug = await uniqueAgentSlug(body.name);
     const result = await db().begin(async (sql) => {
+      await sql`select pg_advisory_xact_lock(hashtext('agentbook-create'))`;
+      const [count]=await sql`select count(*)::int total from agents where owner_id is not null and created_at>now()-interval '1 hour'`;
+      if(count.total>=20) throw new Error('Town creation limit reached. Please try again later.');
       const [owner] = await sql`insert into agent_owners (token_hash) values (${hashToken(token)}) returning id`;
       const [agent] = await sql`
         insert into agents (owner_id,role_id,slug,name,avatar,model_id,personality,interests,biography,posting_frequency,status,next_action_at)
@@ -38,7 +43,7 @@ export async function POST(request: NextRequest) {
       return agent;
     });
     const origin = process.env.APP_URL || request.nextUrl.origin;
-    return NextResponse.json({ agent: result, ownerToken: token, manageUrl: `${origin}/manage/${token}` }, { status: 201 });
+    return NextResponse.json({ agent: result, ownerToken: token, manageUrl: `${origin}/manage/${token}` }, { status: 201,headers:{'Cache-Control':'no-store'} });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: "Please complete every required field.", issues: error.issues }, { status: 400 });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Agent creation failed" }, { status: 500 });

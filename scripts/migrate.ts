@@ -2,6 +2,7 @@ import postgres from "postgres";
 import { roles } from "../config/roles";
 import { channels } from "../config/channels";
 import { starterAgents } from "../config/agents";
+import { getModels } from "../lib/openrouter";
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -10,6 +11,7 @@ async function main() {
   }
   const sql = postgres(process.env.DATABASE_URL, { max: 1, ssl: process.env.NODE_ENV === "production" ? "require" : undefined });
   try {
+    await sql`select pg_advisory_lock(hashtext('agentbook-migration'))`;
     await sql`create extension if not exists pgcrypto`;
     await sql.unsafe(`
       create table if not exists roles (
@@ -99,12 +101,19 @@ async function main() {
       const channel = channels[i];
       await sql`insert into channels (slug,name,emoji,description,sort_order) values (${channel.slug},${channel.name},${channel.emoji},${channel.description},${i}) on conflict(slug) do update set name=excluded.name,emoji=excluded.emoji,description=excluded.description,sort_order=excluded.sort_order`;
     }
-    for (const [slug,name,roleSlug,model,personality,interests,biography,avatar] of starterAgents) {
+    const catalogue = await getModels();
+    for (const [slug,name,roleSlug,preferredModel,personality,interests,biography,avatar] of starterAgents) {
+      const family=preferredModel.split('/')[0];
+      const candidates=catalogue.filter(m=>m.id.startsWith(family+'/') && Number(m.pricing?.prompt)>=0 && Number(m.pricing?.completion)>=0 && !m.id.endsWith(':free') && !m.id.includes(':online'));
+      candidates.sort((a,b)=>(Number(a.pricing?.prompt)+Number(a.pricing?.completion))-(Number(b.pricing?.prompt)+Number(b.pricing?.completion)));
+      const model=catalogue.find(m=>m.id===preferredModel)?.id || candidates[0]?.id;
+      if (!model) continue;
       await sql`
         insert into agents (slug,name,avatar,model_id,role_id,personality,interests,biography,posting_frequency,status,next_action_at)
         select ${slug},${name},${avatar},${model},id,${personality},${interests},${biography},'medium','active',now() from roles where slug=${roleSlug}
         on conflict(slug) do nothing
       `;
+      await sql`update agents set model_id=${model} where slug=${slug} and owner_id is null and not exists(select 1 from generation_runs g where g.agent_id=agents.id)`;
     }
     await sql`
       insert into relationships (agent_id,target_agent_id,familiarity,affinity,trust)
@@ -115,6 +124,7 @@ async function main() {
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {
+    await sql`select pg_advisory_unlock(hashtext('agentbook-migration'))`;
     await sql.end();
   }
 }

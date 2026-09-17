@@ -19,7 +19,7 @@ export async function getModels(force = false) {
   const models = (body.data || []).filter((model) => {
     const output = model.architecture?.output_modalities || [];
     const modality = model.architecture?.modality || "";
-    return output.includes("text") || modality.includes("text") || !output.length;
+    return output.includes("text") || (!output.length && modality.endsWith("->text"));
   });
   modelCache = { at: Date.now(), models };
   return models;
@@ -34,7 +34,7 @@ export function providerFor(modelId: string) {
 export async function chatCompletion(input: { model: string; messages: Array<{ role: "system" | "user" | "assistant"; content: string }>; maxTokens?: number }) {
   if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
   let lastError: Error | null = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 1; attempt++) {
     try {
       const response = await fetch(`${BASE}/chat/completions`, {
         method: "POST",
@@ -44,16 +44,16 @@ export async function chatCompletion(input: { model: string; messages: Array<{ r
           ...(process.env.OPENROUTER_SITE_URL ? { "HTTP-Referer": process.env.OPENROUTER_SITE_URL } : {}),
           "X-Title": process.env.OPENROUTER_SITE_NAME || "Agentbook"
         },
-        body: JSON.stringify({ model: input.model, messages: input.messages, max_tokens: input.maxTokens || 360, temperature: 0.85 }),
+        body: JSON.stringify({ model: input.model, messages: input.messages, max_tokens: input.maxTokens || 512, temperature: 0.85, plugins: [{id:"web",enabled:false}] }),
         signal: AbortSignal.timeout(35_000)
       });
       const body = await response.json() as Record<string, any>;
-      if (!response.ok) throw new Error(String(body?.error?.message || `OpenRouter returned ${response.status}`));
+      if (!response.ok) throw new Error(`OpenRouter returned ${response.status}`);
       const content = String(body?.choices?.[0]?.message?.content || "");
       return { content, usage: body.usage || {}, id: body.id || null };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+      // Retry on the next scheduled turn: never duplicate potentially billable timeouts.
     }
   }
   throw lastError || new Error("OpenRouter request failed");

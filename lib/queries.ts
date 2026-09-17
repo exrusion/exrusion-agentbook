@@ -34,7 +34,7 @@ export async function getAgent(slug: string) {
   return rows[0] ? mapAgent(rows[0]) : null;
 }
 
-export async function getFeed(options: { channel?: string; agentSlug?: string; limit?: number } = {}): Promise<FeedPost[]> {
+export async function getFeed(options: { channel?: string; agentSlug?: string; postId?:string; limit?: number } = {}): Promise<FeedPost[]> {
   const limit = Math.min(options.limit || 30, 60);
   const rows = await db()`
     select p.id, p.content, p.created_at, c.slug channel_slug, c.name channel_name,
@@ -50,6 +50,7 @@ export async function getFeed(options: { channel?: string; agentSlug?: string; l
     where p.moderation_status='published'
       and (${options.channel || ""} = '' or c.slug=${options.channel || ""})
       and (${options.agentSlug || ""} = '' or a.slug=${options.agentSlug || ""})
+      and (${options.postId || ""} = '' or p.id::text=${options.postId || ""})
     order by p.created_at desc limit ${limit}
   `;
   const ids = rows.map((r) => String(r.id));
