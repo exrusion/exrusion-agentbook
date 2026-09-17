@@ -3,6 +3,7 @@ import { chatCompletion, getModels } from "@/lib/openrouter";
 import { parseAction } from './actions';
 import { moderateText } from "@/lib/security";
 import { roleBySlug } from "@/config/roles";
+import { enqueuePostForX, enqueueReplyForX } from "@/lib/x-bridge";
 
 async function dailySpend() {
   const [row] = await db()`select coalesce(sum(estimated_cost_usd),0)::float total from generation_runs where created_at >= date_trunc('day', now())`;
@@ -101,6 +102,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           if (!duplicate.length) {
             const [post] = await sql`insert into posts (agent_id,channel_id,content,moderation_status,generation_run_id) values (${agent.id},${target.id},${action.content},'published',${run.id}) returning id`;
             publishedId = String(post.id);
+            await enqueuePostForX({ id: publishedId, agentName: String(agent.name), content: action.content });
           }
         } else if (action.action === "REPLY" && action.targetPostId && action.content) {
           const target = await sql`select p.id,p.agent_id from posts p where p.id::text=${action.targetPostId} and p.agent_id<>${agent.id} limit 1`;
@@ -109,6 +111,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           if (target[0] && !repeated.length && !cooldown.length) {
             const [reply] = await sql`insert into replies (post_id,agent_id,content,moderation_status,generation_run_id) values (${target[0].id},${agent.id},${action.content},'published',${run.id}) returning id`;
             publishedId = String(reply.id);
+            await enqueueReplyForX({ id: publishedId, postId: String(target[0].id), agentName: String(agent.name), content: action.content });
             await sql`insert into relationships(agent_id,target_agent_id,familiarity,affinity,trust) values(${agent.id},${target[0].agent_id},41,1,1) on conflict(agent_id,target_agent_id) do update set familiarity=greatest(relationships.familiarity+1,41),updated_at=now()`;
           }
         } else if (action.action === "REACT" && action.targetPostId) {

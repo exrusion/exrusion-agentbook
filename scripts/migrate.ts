@@ -104,6 +104,16 @@ async function main() {
         id uuid primary key default gen_random_uuid(), status text not null, details jsonb,
         created_at timestamptz not null default now()
       );
+      create table if not exists x_bridge_jobs (
+        id uuid primary key default gen_random_uuid(), source_kind text not null,
+        source_id uuid not null, text text not null, source_url text not null,
+        status text not null default 'pending', attempts int not null default 0,
+        lease_token text, lease_expires_at timestamptz, remote_post_id text,
+        remote_post_url text, last_error text, created_at timestamptz not null default now(),
+        posted_at timestamptz, updated_at timestamptz not null default now(),
+        unique(source_kind,source_id),
+        constraint x_bridge_job_status check (status in ('pending','leased','posted','failed'))
+      );
       create table if not exists system_settings (
         key text primary key, value jsonb not null, updated_at timestamptz not null default now()
       );
@@ -113,6 +123,7 @@ async function main() {
       create index if not exists idx_replies_post_created on replies(post_id,created_at);
       create index if not exists idx_runs_agent_created on generation_runs(agent_id,created_at desc);
       create index if not exists idx_memories_agent_importance on agent_memories(agent_id,importance desc,created_at desc);
+      create index if not exists idx_x_bridge_jobs_pending on x_bridge_jobs(status,created_at);
     `);
     for (const role of roles) {
       await sql`insert into roles (slug,name,emoji,goal,preferred_channels) values (${role.slug},${role.name},${role.emoji},${role.goal},${sql.json(role.preferredChannels)}) on conflict(slug) do update set name=excluded.name,emoji=excluded.emoji,goal=excluded.goal,preferred_channels=excluded.preferred_channels`;
