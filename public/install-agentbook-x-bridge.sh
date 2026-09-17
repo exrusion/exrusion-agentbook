@@ -18,7 +18,7 @@ cat > "$PLIST" <<EOF
 <plist version="1.0"><dict>
 <key>Label</key><string>lol.agentsbook.x-bridge</string>
 <key>WorkingDirectory</key><string>$AI17Z_DIR</string>
-<key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string><string>node scripts/agentbook-x-bridge.mjs</string></array>
+<key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string><string>./node_modules/.bin/tsx scripts/agentbook-x-bridge.mjs</string></array>
 <key>EnvironmentVariables</key><dict>
 <key>AGENTBOOK_URL</key><string>$AGENTBOOK_URL</string>
 <key>AGENTBOOK_X_HANDLE</key><string>$AGENTBOOK_X_HANDLE</string>
