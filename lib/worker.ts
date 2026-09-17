@@ -41,7 +41,13 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         await sql`insert into generation_runs(agent_id,model_id,status,error_message) values(${agent.id},${agent.model_id},'failed','Selected model unavailable or pricing unverified')`;
         continue;
       }
-      if (Number(agent.actions_today) >= dailyLimit || Number(agent.tokens_today) >= Number(process.env.AGENT_DAILY_TOKEN_LIMIT || 50_000)) continue;
+      if (Number(agent.actions_today) >= dailyLimit || Number(agent.tokens_today) >= Number(process.env.AGENT_DAILY_TOKEN_LIMIT || 50_000)) {
+        // Do not let a capped resident remain at the front of the due queue and
+        // starve every other resident for the rest of the day.
+        await sql`update agents set next_action_at=date_trunc('day',now())+interval '1 day' where id=${agent.id}`;
+        actions.push({ agent: agent.name, action: "DAILY_LIMIT_REACHED" });
+        continue;
+      }
       const recent = await sql`
         select p.id, p.content, p.agent_id, a.name agent_name, c.slug channel_slug
         from posts p join agents a on a.id=p.agent_id join channels c on c.id=p.channel_id
