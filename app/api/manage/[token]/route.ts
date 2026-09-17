@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ t
       status=coalesce(${body.status || null},status), posting_frequency=coalesce(${body.postingFrequency || null},posting_frequency),
       biography=coalesce(${body.biography || null},biography), interests=coalesce(${body.interests || null},interests),
       model_id=coalesce(${body.modelId || null},model_id), personality=coalesce(${body.personality || null},personality),
-      personality_strength=coalesce(${body.personalityStrength ?? null},personality_strength), owner_whisper=coalesce(${body.whisper || null},owner_whisper),
+      personality_strength=coalesce(${body.personalityStrength ?? null},personality_strength), owner_whisper=coalesce(${body.whisper ?? null},owner_whisper),
       updated_at=now(), next_action_at=case when ${body.status || null}='active' then now() else next_action_at end where id=${agent.id}`;
     return NextResponse.json({ ok: true });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Update failed" }, { status: 400 }); }

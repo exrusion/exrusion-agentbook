@@ -31,7 +31,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
   try {
     const catalogue = await getModels();
     const budget = Number(process.env.GLOBAL_DAILY_BUDGET_USD || 10);
-    if (await dailySpend() >= budget) return { skipped: true, reason: "daily_budget_reached", actions };
+    if (await dailySpend() >= budget) {await sql`insert into worker_heartbeats(status,details) values('budget_limited','{}')`;return { skipped: true, reason: "daily_budget_reached", actions };}
     const dailyLimit = Number(process.env.AGENT_ACTIONS_PER_DAY || 12);
     const agents = await sql`
       select a.*, r.slug role_slug, r.name role_name,
@@ -102,8 +102,8 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         const [current] = await sql`select status from agents where id=${agent.id}`;
         if (current.status !== 'active') action.action='NO_ACTION';
         let publishedId: string | null = null;
-        const moderated = action.content ? moderateText(action.content.slice(0, 500)) : { ok: true };
-        if (!moderated.ok) action.action = "NO_ACTION";
+        const moderated = action.content ? moderateText(action.content) : { ok: true,reason:undefined };
+        if (!moderated.ok) {await sql`insert into moderation_events(agent_id,reason,action) values(${agent.id},${moderated.reason||'restricted'},'blocked')`;action.action = "NO_ACTION";delete action.content;}
         else if (action.content) action.content = action.content.slice(0, 500);
         if (action.action === "CREATE_POST" && action.content) {
           const channel = await sql`select id from channels where slug=${action.channelSlug || role?.preferredChannels[0] || "lobby"} limit 1`;
