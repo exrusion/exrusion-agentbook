@@ -7,8 +7,11 @@ export const sessionCookie='agentbook_session';
 export const flowCookie='agentbook_x_flow';
 export const cookieOptions={httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax' as const,path:'/'};
 export function xConfigured(){return Boolean(process.env.X_CLIENT_ID&&process.env.X_CLIENT_SECRET&&process.env.APP_URL);}
-export function appOrigin(){const url=new URL(process.env.APP_URL!);if(process.env.NODE_ENV==='production'&&url.protocol!=='https:')throw new Error('HTTPS APP_URL required');return url.origin;}
-export function callbackUrl(){return appOrigin()+'/api/auth/x/callback';}
+function configuredOrigin(value:string|undefined,label:string){const url=new URL(value!);if(process.env.NODE_ENV==='production'&&url.protocol!=='https:')throw new Error(`HTTPS ${label} required`);return url.origin;}
+export function appOrigin(){return configuredOrigin(process.env.APP_URL,'APP_URL');}
+export function oauthOrigin(){return configuredOrigin(process.env.X_OAUTH_ORIGIN||process.env.APP_URL,'X_OAUTH_ORIGIN');}
+export function callbackUrl(){return oauthOrigin()+'/api/auth/x/callback';}
+export function oauthStartUrl(brain:string){const url=new URL('/api/auth/x/start',oauthOrigin());url.searchParams.set('brain',brain);return url.toString();}
 export function pkceChallenge(verifier:string){return createHash('sha256').update(verifier).digest('base64url');}
 export function sameOrigin(request:Request){try{return request.headers.get('origin')===appOrigin();}catch{return false;}}
 export async function currentUser(){

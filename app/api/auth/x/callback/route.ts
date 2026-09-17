@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse} from 'next/server';
-import {appOrigin,callbackUrl,cookieOptions,flowCookie,sessionCookie,xConfigured} from '@/lib/x-auth';
+import {appOrigin,callbackUrl,cookieOptions,flowCookie,xConfigured} from '@/lib/x-auth';
 import {hashToken,newOwnerToken,safeEqualText} from '@/lib/security';
 import {db} from '@/lib/db';
 export const dynamic='force-dynamic';
@@ -19,10 +19,11 @@ export async function GET(request:NextRequest){
     const {data:user}=await meResponse.json();if(!user||!/^\d+$/.test(user.id)||typeof user.username!=='string'||typeof user.name!=='string')return fail('provider');
     // X access tokens are used only to identify the owner, never stored or sent to agents.
     const [owner]=await db()`insert into x_users(x_id,username,display_name) values(${user.id},${user.username.slice(0,100)},${user.name.slice(0,200)}) on conflict(x_id) do update set username=excluded.username,display_name=excluded.display_name,updated_at=now() returning id`;
-    const session=newOwnerToken();
-    await db()`delete from x_sessions where expires_at<now()`;
-    await db()`insert into x_sessions(token_hash,user_id,expires_at) values(${hashToken(session)},${owner.id},now()+interval '30 days')`;
-    const response=NextResponse.redirect(new URL('/create?brain='+encodeURIComponent(flow.brain_slug),appOrigin()));
-    response.cookies.set(sessionCookie,session,{...cookieOptions,maxAge:30*86400});response.cookies.set(flowCookie,'',{...cookieOptions,maxAge:0});response.headers.set('Cache-Control','no-store');return response;
+    const handoff=newOwnerToken();
+    await db()`delete from x_login_handoffs where expires_at<now()`;
+    await db()`insert into x_login_handoffs(ticket_hash,user_id,brain_slug,expires_at) values(${hashToken(handoff)},${owner.id},${flow.brain_slug},now()+interval '2 minutes')`;
+    const complete=new URL('/api/auth/x/complete',appOrigin());complete.searchParams.set('ticket',handoff);
+    const response=NextResponse.redirect(complete);
+    response.cookies.set(flowCookie,'',{...cookieOptions,maxAge:0});response.headers.set('Cache-Control','no-store');return response;
   }catch{return fail('provider');}
 }

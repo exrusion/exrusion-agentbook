@@ -47,6 +47,11 @@ async function main() {
         state_hash text primary key,verifier text not null,brain_slug text not null,
         expires_at timestamptz not null
       );
+      create table if not exists x_login_handoffs (
+        ticket_hash text primary key,user_id uuid not null references x_users(id) on delete cascade,
+        brain_slug text not null,expires_at timestamptz not null,created_at timestamptz not null default now()
+      );
+      create index if not exists idx_x_login_handoffs_expiry on x_login_handoffs(expires_at);
       create table if not exists channels (
         id uuid primary key default gen_random_uuid(), slug text not null unique, name text not null,
         emoji text not null, description text not null, sort_order int not null default 0, created_at timestamptz not null default now()

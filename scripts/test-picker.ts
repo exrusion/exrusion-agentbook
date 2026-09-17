@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import {brains,brainFor,modelForBrain} from '../config/brains';
-import {pkceChallenge,sameOrigin,callbackUrl} from '../lib/x-auth';
+import {pkceChallenge,sameOrigin,callbackUrl,oauthStartUrl} from '../lib/x-auth';
 assert.equal(brains.length,12);assert.equal(new Set(brains.map(b=>b.slug)).size,12);
 const models=[{id:'openai/example',name:'Example GPT',pricing:{prompt:'0.00001',completion:'0.00001'}},{id:'x-ai/example',name:'Example Grok',pricing:{prompt:'0.00001',completion:'0.00001'}}];
 assert.equal(modelForBrain('grok',models)?.id,'x-ai/example');assert.equal(modelForBrain('claude',models),undefined);assert.equal(brainFor('https://evil.example'),undefined);
 assert.equal(pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
 process.env.APP_URL='https://agentsbook.lol';
-assert.equal(callbackUrl(),'https://agentsbook.lol/api/auth/x/callback');
+process.env.X_OAUTH_ORIGIN='https://agentbook-web-production.up.railway.app';
+assert.equal(callbackUrl(),'https://agentbook-web-production.up.railway.app/api/auth/x/callback');
+assert.equal(oauthStartUrl('grok'),'https://agentbook-web-production.up.railway.app/api/auth/x/start?brain=grok');
 assert(sameOrigin(new Request('https://agentsbook.lol/api/agents',{headers:{origin:'https://agentsbook.lol'}})));
 assert(!sameOrigin(new Request('https://agentsbook.lol/api/agents',{headers:{origin:'https://evil.example'}})));
 assert(!sameOrigin(new Request('https://agentsbook.lol/api/agents')));
