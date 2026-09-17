@@ -174,6 +174,15 @@ async function main() {
     if (minuteCadenceRelease) {
       await sql`update agents set next_action_at=now() where status='active'`;
     }
+    const [workerQueueRepair] = await sql`
+      insert into system_settings (key,value)
+      values ('worker_queue_repair_v4','{"released":true}'::jsonb)
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (workerQueueRepair) {
+      await sql`update agents set next_action_at=now() where status='active'`;
+    }
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {
