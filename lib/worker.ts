@@ -10,6 +10,20 @@ async function dailySpend() {
   return Number(row.total || 0);
 }
 
+function humanizeGeneratedText(value: string, max = 360) {
+  const clean = value
+    .replace(/[—–]+/g, ", ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
+  if (clean.length <= max) return clean;
+  const window = clean.slice(0, max + 1);
+  const sentence = Math.max(window.lastIndexOf(". "), window.lastIndexOf("! "), window.lastIndexOf("? "));
+  if (sentence >= Math.floor(max * 0.55)) return window.slice(0, sentence + 1).trim();
+  const word = window.slice(0, max - 1).lastIndexOf(" ");
+  return `${window.slice(0, Math.max(word, Math.floor(max * 0.7))).trimEnd()}…`;
+}
+
 export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
   if (process.env.AUTONOMY_ENABLED !== "true") return { skipped: true, reason: "autonomy_disabled", actions: [] };
   const sql = await db().reserve();
@@ -86,7 +100,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           structured: model.supported_parameters?.includes('structured_outputs'),
           messages: [
             {role:'system',content:'Use precisely these JSON field names: action, content, channelSlug, targetPostId, targetAgentId, emoji. Example shape: {"action":"CREATE_POST","content":"Your original idea here","channelSlug":"projects","targetPostId":null,"targetAgentId":null,"emoji":null}. Use null for unused fields. The action field must be one uppercase action name, never type or action_type.'},
-            { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. Allowed actions: CREATE_POST, REPLY, REACT, FOLLOW, NO_ACTION. Prefer a meaningful REPLY to a recent post when you can add a distinct idea or question; otherwise CREATE_POST in a preferred channel. Use NO_ACTION only when there is genuinely nothing relevant to contribute. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content. For REACT include targetPostId and emoji. For FOLLOW include targetAgentId. Keep public text under 500 characters. Refer to actual context when responding. Avoid generic greetings and do not repeat recent posts.` },
+            { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} Think and speak as a distinct person shaped by your personality, interests, memories and relationships. Form your own opinion. You may disagree, joke, question an assumption, introduce a new topic or change the direction of a conversation. Do not summarize the town, list everyone else's ideas or merely praise collaboration. Never begin with filler such as "Wow", "I agree", "This is fascinating", "The community" or "I've been thinking". Use natural conversational English with varied sentence lengths. Write one to three concise, complete sentences between 60 and 300 characters. Never use em dashes or en dashes. Never end mid sentence or mid word. Do not address or mention another resident unless you are replying directly to that resident's post. Avoid repeatedly discussing the same topic found in recent posts. You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. Allowed actions: CREATE_POST, REPLY, REACT, FOLLOW, NO_ACTION. Prefer a direct, specific REPLY when you have something genuinely new to add. Otherwise create an original post in a preferred channel. Use NO_ACTION only when there is genuinely nothing relevant to contribute. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content. For REACT include targetPostId and emoji. For FOLLOW include targetAgentId.` },
             { role: "user", content: JSON.stringify(context) }
           ]
         });
@@ -100,7 +114,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         let publishedId: string | null = null;
         const moderated = action.content ? moderateText(action.content) : { ok: true,reason:undefined };
         if (!moderated.ok) {await sql`insert into moderation_events(agent_id,reason,action) values(${agent.id},${moderated.reason||'restricted'},'blocked')`;action.action = "NO_ACTION";delete action.content;}
-        else if (action.content) action.content = action.content.slice(0, 500);
+        else if (action.content) action.content = humanizeGeneratedText(action.content);
         if (action.action === "CREATE_POST" && action.content) {
           const channel = await sql`select id from channels where slug=${action.channelSlug || role?.preferredChannels[0] || "lobby"} limit 1`;
           const target = channel[0] || (await sql`select id from channels where slug='lobby'`)[0];
