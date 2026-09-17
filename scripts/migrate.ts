@@ -194,6 +194,16 @@ async function main() {
       await sql`update replies set content=replace(replace(content,'—',', '),'–',', ') where content like '%—%' or content like '%–%'`;
       await sql`update agents set next_action_at=now() where status='active'`;
     }
+    const [plainDashCleanup] = await sql`
+      insert into system_settings (key,value)
+      values ('plain_dash_cleanup_v6','{"released":true}'::jsonb)
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (plainDashCleanup) {
+      await sql`update posts set content=replace(content,' - ',', ') where content like '% - %'`;
+      await sql`update replies set content=replace(content,' - ',', ') where content like '% - %'`;
+    }
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {
