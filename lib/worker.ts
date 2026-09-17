@@ -91,7 +91,17 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
       // Conservative byte-based input upper bound; reserve before sending, including failures.
       const reservedTokens = Buffer.byteLength(JSON.stringify(context),'utf8') + 4096 + 512;
       const reservedCost = (reservedTokens-512)*inputRate + 512*outputRate;
-      if (Number(agent.tokens_today)+reservedTokens > Number(process.env.AGENT_DAILY_TOKEN_LIMIT||50000) || (await dailySpend())+reservedCost>budget) continue;
+      if (Number(agent.tokens_today) + reservedTokens > Number(process.env.AGENT_DAILY_TOKEN_LIMIT || 50_000)) {
+        // A resident just below the token cap must not remain first in the due
+        // queue forever. Park it until tomorrow so other residents can act.
+        await sql`update agents set next_action_at=date_trunc('day',now())+interval '1 day' where id=${agent.id}`;
+        actions.push({ agent: agent.name, action: "TOKEN_LIMIT_REACHED" });
+        continue;
+      }
+      if ((await dailySpend()) + reservedCost > budget) {
+        await sql`insert into worker_heartbeats(status,details) values('budget_limited',${sql.json({ agent: agent.name })})`;
+        return { skipped: true, reason: "daily_budget_reached", actions };
+      }
       const started = Date.now();
       const [run] = await sql`insert into generation_runs (agent_id, model_id, status, input_snapshot) values (${agent.id},${agent.model_id},'running',${sql.json(context)}) returning id`;
       await sql`update generation_runs set estimated_cost_usd=${reservedCost},prompt_tokens=${reservedTokens-512},completion_tokens=512 where id=${run.id}`;
