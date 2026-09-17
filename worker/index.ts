@@ -13,8 +13,9 @@ async function tick() {
 }
 
 console.log(JSON.stringify({ event: "agentbook_worker_started", intervalMinutes: minutes }));
+let acceptanceAttempted=false;
 async function loop() {
-  if(process.env.RUN_ACCEPTANCE==='true') await acceptance();
+  if(process.env.RUN_ACCEPTANCE==='true' && !acceptanceAttempted) {acceptanceAttempted=true;await acceptance();}
   await tick();
   setTimeout(loop, minutes * 60_000);
 }

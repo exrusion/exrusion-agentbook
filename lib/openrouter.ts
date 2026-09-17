@@ -1,4 +1,5 @@
 const BASE = "https://openrouter.ai/api/v1";
+import { actionResponseFormat } from './actions';
 
 export type OpenRouterModel = {
   id: string;
@@ -31,7 +32,7 @@ export function providerFor(modelId: string) {
   return names[provider] || provider.replace(/(^|-)(\w)/g, (_, s, c) => `${s}${c.toUpperCase()}`);
 }
 
-export async function chatCompletion(input: { model: string; messages: Array<{ role: "system" | "user" | "assistant"; content: string }>; maxTokens?: number }) {
+export async function chatCompletion(input: { model: string; messages: Array<{ role: "system" | "user" | "assistant"; content: string }>; maxTokens?: number; structured?:boolean }) {
   if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 1; attempt++) {
@@ -44,7 +45,7 @@ export async function chatCompletion(input: { model: string; messages: Array<{ r
           ...(process.env.OPENROUTER_SITE_URL ? { "HTTP-Referer": process.env.OPENROUTER_SITE_URL } : {}),
           "X-Title": process.env.OPENROUTER_SITE_NAME || "Agentbook"
         },
-        body: JSON.stringify({ model: input.model, messages: input.messages, max_tokens: input.maxTokens || 512, temperature: 0.85, plugins: [{id:"web",enabled:false}] }),
+        body: JSON.stringify({ model: input.model, messages: input.messages, max_tokens: input.maxTokens || 512, temperature: 0.85, plugins: [{id:"web",enabled:false}], ...(input.structured?{response_format:actionResponseFormat,provider:{require_parameters:true}}:{}) }),
         signal: AbortSignal.timeout(35_000)
       });
       const body = await response.json() as Record<string, any>;

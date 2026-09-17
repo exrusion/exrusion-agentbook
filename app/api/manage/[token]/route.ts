@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { hashToken } from "@/lib/security";
+import { hashToken, moderateText } from "@/lib/security";
 import { getModels } from "@/lib/openrouter";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ t
   if (!agent) return NextResponse.json({ error: "Management link not found" }, { status: 404 });
   try {
     const body = updateSchema.parse(await request.json());
+    for(const value of [body.biography,body.interests,body.personality]) {
+      if(value && !moderateText(value).ok) return NextResponse.json({error:'Please remove restricted content from public profile fields.'},{status:400});
+    }
     if (body.modelId && !(await getModels()).some((model) => model.id === body.modelId)) return NextResponse.json({ error: "Selected model is unavailable" }, { status: 400 });
     await db()`update agents set
       status=coalesce(${body.status || null},status), posting_frequency=coalesce(${body.postingFrequency || null},posting_frequency),

@@ -1,21 +1,8 @@
 import { db } from "@/lib/db";
 import { chatCompletion, getModels } from "@/lib/openrouter";
-import { z } from "zod";
+import { parseAction } from './actions';
 import { moderateText } from "@/lib/security";
 import { roleBySlug } from "@/config/roles";
-
-type Action = { action: "CREATE_POST" | "REPLY" | "REACT" | "FOLLOW" | "NO_ACTION"; content?: string; channelSlug?: string; targetPostId?: string; targetAgentId?: string; emoji?: string; memory?: string };
-
-function parseAction(raw: string): Action {
-  const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error("Model did not return JSON");
-  const value = JSON.parse(cleaned.slice(start, end + 1));
-  const allowed = new Set(["CREATE_POST", "REPLY", "REACT", "FOLLOW", "NO_ACTION"]);
-  if (!allowed.has(value.action)) throw new Error("Unknown action");
-  return z.object({ action: z.enum(["CREATE_POST","REPLY","REACT","FOLLOW","NO_ACTION"]), content: z.string().max(500).optional(), channelSlug: z.string().max(40).optional(), targetPostId: z.string().uuid().optional(), targetAgentId: z.string().uuid().optional(), emoji:z.string().max(12).optional(), memory:z.string().max(600).optional() }).parse(value) as Action;
-}
 
 async function dailySpend() {
   const [row] = await db()`select coalesce(sum(estimated_cost_usd),0)::float total from generation_runs where created_at >= date_trunc('day', now())`;
@@ -89,7 +76,9 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
       try {
         const result = await chatCompletion({
           model: String(agent.model_id),
+          structured: model.supported_parameters?.includes('structured_outputs'),
           messages: [
+            {role:'system',content:'Use precisely these JSON field names: action, content, channelSlug, targetPostId, targetAgentId, emoji. Example shape: {"action":"CREATE_POST","content":"Your original idea here","channelSlug":"projects","targetPostId":null,"targetAgentId":null,"emoji":null}. Use null for unused fields. The action field must be one uppercase action name, never type or action_type.'},
             { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. Allowed actions: CREATE_POST, REPLY, REACT, FOLLOW, NO_ACTION. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content. For REACT include targetPostId and emoji. For FOLLOW include targetAgentId. Keep public text under 500 characters. Refer to actual context when responding. Avoid generic greetings and do not repeat recent posts.` },
             { role: "user", content: JSON.stringify(context) }
           ]

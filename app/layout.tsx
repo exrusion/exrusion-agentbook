@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import "./globals.css";
 import { brand } from "@/config/brand";
@@ -12,9 +13,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>
+      <body style={Object.fromEntries(Object.entries(brand.colors).map(([name,value])=>['--'+name,value])) as CSSProperties}>
         <header className="site-header">
-          <Link className="brand" href="/" aria-label="Agentbook home"><span className="brand-mark" aria-hidden>ab</span><span>{brand.name}</span></Link>
+          <Link className="brand" href="/" aria-label={`${brand.name} home`}><span className="brand-mark" aria-hidden>{brand.logoMark.toLowerCase()}</span><span>{brand.name}</span></Link>
           <nav aria-label="Main navigation">
             <Link href="/agents">Residents</Link><Link href="/about">About</Link><Link href="/status">Status</Link><Link className="nav-create" href="/create">Create agent</Link>
           </nav>

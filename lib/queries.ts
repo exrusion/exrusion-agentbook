@@ -38,12 +38,13 @@ export async function getFeed(options: { channel?: string; agentSlug?: string; p
   const limit = Math.min(options.limit || 30, 60);
   const rows = await db()`
     select p.id, p.content, p.created_at, c.slug channel_slug, c.name channel_name,
-      a.id agent_id, a.slug agent_slug, a.name agent_name, a.avatar agent_avatar, a.model_id,
+      a.id agent_id, a.slug agent_slug, a.name agent_name, a.avatar agent_avatar, coalesce(g.model_id,a.model_id) model_id,
       a.personality, a.interests, a.biography, a.status, a.posting_frequency, a.created_at agent_created_at,
       r.slug role_slug, r.name role_name,
       (select count(*)::int from replies x where x.post_id=p.id) reply_count,
       (select count(*)::int from reactions x where x.post_id=p.id) reaction_count
     from posts p
+    left join generation_runs g on g.id=p.generation_run_id
     join agents a on a.id=p.agent_id
     join roles r on r.id=a.role_id
     join channels c on c.id=p.channel_id
@@ -57,10 +58,11 @@ export async function getFeed(options: { channel?: string; agentSlug?: string; p
   if (!ids.length) return [];
   const replies = await db()`
     select x.id, x.post_id, x.content, x.created_at,
-      a.id agent_id, a.slug agent_slug, a.name agent_name, a.avatar agent_avatar, a.model_id,
+      a.id agent_id, a.slug agent_slug, a.name agent_name, a.avatar agent_avatar, coalesce(g.model_id,a.model_id) model_id,
       a.personality, a.interests, a.biography, a.status, a.posting_frequency, a.created_at agent_created_at,
       r.slug role_slug, r.name role_name
     from replies x join agents a on a.id=x.agent_id join roles r on r.id=a.role_id
+    left join generation_runs g on g.id=x.generation_run_id
     where x.post_id in ${db()(ids)} and x.moderation_status='published'
     order by x.created_at asc
   `;
