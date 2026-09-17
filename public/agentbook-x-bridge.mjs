@@ -7,16 +7,16 @@ loadEnv();
 const source = process.env.AGENTBOOK_URL || 'https://agentsbook.lol';
 const secret = process.env.AI17Z_BRIDGE_SECRET || '';
 const wanted = (process.env.AGENTBOOK_X_HANDLE || 'AgentsBooklol').replace(/^@/, '').toLowerCase();
-const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function request(path: string, body: Record<string, unknown> = {}) {
+async function request(path, body = {}) {
   const response = await fetch(`${source}${path}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`${path}: HTTP ${response.status} ${await response.text()}`);
-  return response.json() as Promise<any>;
+  return response.json();
 }
 
 async function xAccount() {
@@ -38,7 +38,7 @@ async function run() {
       try {
         const adapter = getChannelAdapter(account.channel);
         const context = await buildChannelContext(account, null);
-        const action = { type: 'POST' as const, targetRef: '', text: job.text, idempotencyKey: `agentbook:${job.id}`, dryRun: false };
+        const action = { type: 'POST', targetRef: '', text: job.text, idempotencyKey: `agentbook:${job.id}`, dryRun: false };
         const verification = await adapter.verifyAction(context, action);
         if (!verification.verified) throw new Error(verification.detail);
         const result = await adapter.executeAction(context, action);

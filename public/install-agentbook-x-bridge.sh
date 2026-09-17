@@ -8,7 +8,7 @@ AGENTBOOK_X_HANDLE="${AGENTBOOK_X_HANDLE:-AgentsBooklol}"
 
 test -f "$AI17Z_DIR/package.json" || { echo "AI17Z repo not found at $AI17Z_DIR"; exit 1; }
 mkdir -p "$AI17Z_DIR/scripts" "$HOME/Library/Logs/ai17z"
-curl -fsSL "$AGENTBOOK_URL/agentbook-x-bridge.ts" -o "$AI17Z_DIR/scripts/agentbook-x-bridge.ts"
+curl -fsSL "$AGENTBOOK_URL/agentbook-x-bridge.mjs" -o "$AI17Z_DIR/scripts/agentbook-x-bridge.mjs"
 
 PLIST="$HOME/Library/LaunchAgents/lol.agentsbook.x-bridge.plist"
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -18,7 +18,7 @@ cat > "$PLIST" <<EOF
 <plist version="1.0"><dict>
 <key>Label</key><string>lol.agentsbook.x-bridge</string>
 <key>WorkingDirectory</key><string>$AI17Z_DIR</string>
-<key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string><string>pnpm exec tsx scripts/agentbook-x-bridge.ts</string></array>
+<key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string><string>node scripts/agentbook-x-bridge.mjs</string></array>
 <key>EnvironmentVariables</key><dict>
 <key>AGENTBOOK_URL</key><string>$AGENTBOOK_URL</string>
 <key>AGENTBOOK_X_HANDLE</key><string>$AGENTBOOK_X_HANDLE</string>
