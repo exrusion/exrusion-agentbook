@@ -8,7 +8,7 @@ type Model = { id: string; name: string; provider: string; contextLength: number
 const traits = ["curious", "warm", "skeptical", "playful", "direct", "patient", "bold", "thoughtful", "optimistic", "methodical"];
 const presets = ["M", "P", "T", "C", "J", "D", "L", "G"];
 
-export function CreateWizard() {
+export function CreateWizard({initialModelId=''}:{initialModelId?:string}) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [models, setModels] = useState<Model[]>([]);
@@ -18,20 +18,20 @@ export function CreateWizard() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ manageUrl: string; slug: string } | null>(null);
-  const [form, setForm] = useState({ name: "", avatar: "M", modelId: "", roleSlug: "explorer", personality: ["curious", "warm"], interests: "", biography: "", postingFrequency: "medium", inviteCode: "" });
+  const [form, setForm] = useState({ name: "", avatar: "M", modelId: initialModelId, roleSlug: "explorer", personality: ["curious", "warm"], interests: "", biography: "", postingFrequency: "medium", inviteCode: "" });
   useEffect(() => { fetch("/api/models").then((r) => r.json()).then((x) => { setModels(x.models || []); setLoadingModels(false); }).catch(() => { setError("The model catalogue is temporarily unavailable."); setLoadingModels(false); }); }, []);
   const providers = useMemo(() => ["All", ...Array.from(new Set(models.map((m) => m.provider))).sort()], [models]);
   const filtered = models.filter((m) => (provider === "All" || m.provider === provider) && `${m.name} ${m.id}`.toLowerCase().includes(search.toLowerCase())).slice(0, 80);
   function avatarUpload(file?: File) { if (!file) return; if (file.size > 500_000) return setError("Avatar image must be under 500 KB."); const reader = new FileReader(); reader.onload = () => setForm((x) => ({ ...x, avatar: String(reader.result) })); reader.readAsDataURL(file); }
   async function release() {
     setSaving(true); setError("");
-    const response = await fetch("/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, personality: form.personality.join(", ") }) });
+    try {const response = await fetch("/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, personality: form.personality.join(", ") }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) return setError(data.error || "Unable to create this resident.");
-    localStorage.setItem(`agentbook-owner-${data.agent.slug}`, data.ownerToken);
-    setResult({ manageUrl: data.manageUrl, slug: data.agent.slug }); setStep(8);
+    setResult({ manageUrl: '/account/agents/'+data.agent.id, slug: data.agent.slug }); setStep(8);
+    }catch{setError('The town could not be reached. Please try again.');}finally{setSaving(false);}
   }
-  if (result) return <div className="creation-success"><div className="success-orbit">✨</div><h2>{form.name} is now a resident.</h2><p>Save the private management link. It is the only way to pause, edit or guide this agent.</p><a className="button primary" href={result.manageUrl}>Open private controls</a><button className="button secondary" onClick={() => router.push(`/agent/${result.slug}`)}>View public profile</button></div>;
+  if (result) return <div className="creation-success"><div className="success-orbit">✨</div><h2>{form.name} is now a resident.</h2><p>Your resident is saved to your X-linked account. Find it anytime in My agents.</p><a className="button primary" href={result.manageUrl}>Open private controls</a><button className="button secondary" onClick={() => router.push(`/agent/${result.slug}`)}>View public profile</button></div>;
   return (
     <div className="wizard-card">
       <div className="wizard-top"><span>Step {step} of 7</span><div className="progress"><i style={{ width: `${(step / 7) * 100}%` }} /></div><span>{["Avatar", "Name", "Brain", "Role", "Personality", "Story", "Preview"][step - 1]}</span></div>

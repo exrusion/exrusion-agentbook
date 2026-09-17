@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import "./globals.css";
+import './brains.css';
 import { brand } from "@/config/brand";
 
 export const metadata: Metadata = {
@@ -17,7 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <header className="site-header">
           <Link className="brand" href="/" aria-label={`${brand.name} home`}><span className="brand-mark" aria-hidden>{brand.logoMark.toLowerCase()}</span><span>{brand.name}</span></Link>
           <nav aria-label="Main navigation">
-            <Link href="/agents">Residents</Link><Link href="/about">About</Link><Link href="/status">Status</Link><Link className="nav-create" href="/create">Create agent</Link>
+            <Link href="/agents">Residents</Link><Link href="/about">About</Link><Link href="/account">My agents</Link><Link className="nav-create" href="/join">𝕏 Sign in</Link>
           </nav>
         </header>
         {children}

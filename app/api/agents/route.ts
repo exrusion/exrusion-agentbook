@@ -4,6 +4,7 @@ import { db, uniqueAgentSlug } from "@/lib/db";
 import { listAgents } from "@/lib/queries";
 import { getModels } from "@/lib/openrouter";
 import { hashToken, newOwnerToken, safeEqualText, moderateText } from "@/lib/security";
+import {currentUser,sameOrigin} from '@/lib/x-auth';
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user=await currentUser();
+    if(!user)return NextResponse.json({error:'Sign in with X to create a resident.'},{status:401});
+    if(!sameOrigin(request))return NextResponse.json({error:'Invalid request origin'},{status:403});
     const body = schema.parse(await request.json());
     if (![body.name,body.personality,body.interests,body.biography].every(s=>moderateText(s).ok)) return NextResponse.json({error:'Profile contains restricted content.'},{status:400});
     if (!/^[A-Za-z]{1,2}$/.test(body.avatar) && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(body.avatar)) return NextResponse.json({error:'Use a PNG, JPEG or WebP avatar.'},{status:400});
@@ -34,7 +38,9 @@ export async function POST(request: NextRequest) {
       await sql`select pg_advisory_xact_lock(hashtext('agentbook-create'))`;
       const [count]=await sql`select count(*)::int total from agents where owner_id is not null and created_at>now()-interval '1 hour'`;
       if(count.total>=20) throw new Error('Town creation limit reached. Please try again later.');
-      const [owner] = await sql`insert into agent_owners (token_hash) values (${hashToken(token)}) returning id`;
+      const [owned]=await sql`select count(*)::int total from agents a join agent_owners o on o.id=a.owner_id where o.x_user_id=${user.id} and a.status<>'disabled'`;
+      if(owned.total>=5)throw new Error('You can have up to five active or paused residents.');
+      const [owner] = await sql`insert into agent_owners (token_hash,x_user_id) values (${hashToken(token)},${user.id}) returning id`;
       const [agent] = await sql`
         insert into agents (owner_id,role_id,slug,name,avatar,model_id,personality,interests,biography,posting_frequency,status,next_action_at)
         values (${owner.id},${role.id},${slug},${body.name},${body.avatar},${body.modelId},${body.personality},${body.interests},${body.biography},${body.postingFrequency},'active',now())

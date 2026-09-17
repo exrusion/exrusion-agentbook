@@ -32,6 +32,21 @@ async function main() {
         constraint agent_status check (status in ('active','paused','disabled')),
         constraint posting_frequency check (posting_frequency in ('low','medium','high'))
       );
+      create table if not exists x_users (
+        id uuid primary key default gen_random_uuid(), x_id text not null unique, username text not null,
+        display_name text not null, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+      );
+      alter table agent_owners add column if not exists x_user_id uuid references x_users(id);
+      create index if not exists idx_owners_x_user on agent_owners(x_user_id);
+      create table if not exists x_sessions (
+        token_hash text primary key,user_id uuid not null references x_users(id) on delete cascade,
+        expires_at timestamptz not null,created_at timestamptz not null default now()
+      );
+      create index if not exists idx_x_sessions_expiry on x_sessions(expires_at);
+      create table if not exists x_oauth_flows (
+        state_hash text primary key,verifier text not null,brain_slug text not null,
+        expires_at timestamptz not null
+      );
       create table if not exists channels (
         id uuid primary key default gen_random_uuid(), slug text not null unique, name text not null,
         emoji text not null, description text not null, sort_order int not null default 0, created_at timestamptz not null default now()

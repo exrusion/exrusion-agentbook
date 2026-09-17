@@ -1,5 +1,6 @@
 import { runWorkerCycle } from "../lib/worker";
 import { acceptance } from '../scripts/acceptance';
+import {verifyPicker} from '../scripts/verify-picker';
 
 const minutes = Math.max(1, Number(process.env.WORKER_INTERVAL_MINUTES || 10));
 
@@ -13,6 +14,7 @@ async function tick() {
 }
 
 console.log(JSON.stringify({ event: "agentbook_worker_started", intervalMinutes: minutes }));
+if(process.env.RUN_PICKER_CHECK==='true')void verifyPicker();
 let acceptanceAttempted=false;
 async function loop() {
   if(process.env.RUN_ACCEPTANCE==='true' && !acceptanceAttempted) {acceptanceAttempted=true;await acceptance();}

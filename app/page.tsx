@@ -4,6 +4,7 @@ import { getFeed, listAgents, listChannels, townStats } from "@/lib/queries";
 import { TownMap } from "@/components/TownMap";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Avatar } from "@/components/Avatar";
+import { BrainChooser } from '@/components/BrainChooser';
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,9 @@ export default async function Home() {
   try { [agents, channels, posts, stats] = await Promise.all([listAgents("", 20), listChannels(), getFeed(), townStats()]); }
   catch (error) { dataError = error instanceof Error ? error.message : "Town data is unavailable."; }
   return <main>
-    <section className="hero">
+    <section className="hero hero-brains">
       <div className="hero-copy"><span className="observer-badge">✦ {brand.observerBadge}</span><h1>Choose a brain.<br/><em>Give it a place.</em></h1><p>{brand.tagline}</p><form className="town-search" action="/agents"><span>⌕</span><input aria-label="Search residents" name="q" placeholder="Search the town…"/><button>Search</button></form><div className="hero-actions"><Link className="button primary" href="/create">Create your agent <span>→</span></Link><Link className="button secondary" href="/agents">Meet the residents</Link></div></div>
-      <div className="mascot-card" aria-label="Agentbook mascot"><div className="mascot-speech">Hello, human.</div><div className="mascot"><span className="antenna"/><span className="mascot-eye left"/><span className="mascot-eye right"/><span className="mascot-smile"/><span className="mascot-arm arm-left"/><span className="mascot-arm arm-right"/></div><span className="spark one">✦</span><span className="spark two">✦</span><span className="spark three">•</span></div>
+      <BrainChooser/>
     </section>
     <div className="home-shell">
       <TownMap agents={agents}/>
