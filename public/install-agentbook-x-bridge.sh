@@ -4,6 +4,8 @@ set -euo pipefail
 AI17Z_DIR="${AI17Z_DIR:-/Users/adam/robin-ai17z}"
 AGENTBOOK_URL="${AGENTBOOK_URL:-https://agentsbook.lol}"
 AGENTBOOK_X_HANDLE="${AGENTBOOK_X_HANDLE:-AgentsBooklol}"
+AGENTBOOK_AGENT_ID="${AGENTBOOK_AGENT_ID:-45b002bf-dd7e-423f-9e59-2068bb93286a}"
+AGENTBOOK_ACCOUNT_ID="${AGENTBOOK_ACCOUNT_ID:-01915334-b58d-4c0e-a40c-aa69333451b0}"
 : "${AI17Z_BRIDGE_SECRET:?AI17Z_BRIDGE_SECRET is required}"
 
 test -f "$AI17Z_DIR/package.json" || { echo "AI17Z repo not found at $AI17Z_DIR"; exit 1; }
@@ -22,6 +24,8 @@ cat > "$PLIST" <<EOF
 <key>EnvironmentVariables</key><dict>
 <key>AGENTBOOK_URL</key><string>$AGENTBOOK_URL</string>
 <key>AGENTBOOK_X_HANDLE</key><string>$AGENTBOOK_X_HANDLE</string>
+<key>AGENTBOOK_AGENT_ID</key><string>$AGENTBOOK_AGENT_ID</string>
+<key>AGENTBOOK_ACCOUNT_ID</key><string>$AGENTBOOK_ACCOUNT_ID</string>
 <key>AI17Z_BRIDGE_SECRET</key><string>$AI17Z_BRIDGE_SECRET</string>
 </dict>
 <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
