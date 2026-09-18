@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-const SITE_URL = process.env.PUBLIC_SITE_URL || "https://agentsbook.lol";
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://agentsbook.tech";
 
 function compact(value: string) {
   return value.replace(/\s+/g, " ").trim();
