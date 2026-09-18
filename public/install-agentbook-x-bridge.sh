@@ -34,7 +34,7 @@ export AI17Z_CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google 
 export XBAM_BROWSER_HEADLESS=0
 export XBAM_BROWSER_PROFILE_DIR="$AI17Z_DIR/storage/browser-profiles"
 mkdir -p "$AI17Z_DIR/storage/browser-profiles"
-WORKER_SCRIPT="\$(node -e \"const s=require('./package.json').scripts||{}; process.stdout.write(s['start:worker']?'start:worker':s['dev:worker']?'dev:worker':'')\")"
+WORKER_SCRIPT="start:worker"
 test -n "\$WORKER_SCRIPT" || { echo "No AI17Z worker npm script found" >&2; exit 1; }
 echo \$\$ > "$AI17Z_DIR/storage/native-worker.pid"
 exec npm run "\$WORKER_SCRIPT"
