@@ -34,7 +34,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
   try {
     const [cadenceMigration] = await sql`
       insert into system_settings(key,value,updated_at)
-      values('town_speaking_cadence_v10',${sql.json({ nextAt: new Date().toISOString(), cadence: "1-2 minutes" })},now())
+      values('town_speaking_cadence_v11',${sql.json({ nextAt: new Date().toISOString(), cadence: "1-2 minutes" })},now())
       on conflict(key) do nothing
       returning key
     `;
@@ -44,7 +44,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
     const [townCadence] = await sql`
       select value->>'nextAt' as next_at
       from system_settings
-      where key='town_speaking_cadence_v10'
+      where key='town_speaking_cadence_v11'
     `;
     if (townCadence?.next_at && new Date(String(townCadence.next_at)).getTime() > Date.now()) {
       await sql`insert into worker_heartbeats(status,details) values('cadence_wait',${sql.json({ nextAt: townCadence.next_at })})`;
@@ -178,7 +178,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           const nextAt = new Date(Date.now() + minutes * 60_000).toISOString();
           await sql`
             insert into system_settings(key,value,updated_at)
-            values('town_speaking_cadence_v10',${sql.json({ nextAt, cadence: "1-2 minutes" })},now())
+            values('town_speaking_cadence_v11',${sql.json({ nextAt, cadence: "1-2 minutes" })},now())
             on conflict(key) do update set value=excluded.value,updated_at=now()
           `;
         }
