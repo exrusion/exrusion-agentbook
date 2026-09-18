@@ -204,6 +204,42 @@ async function main() {
       await sql`update posts set content=replace(content,' - ',', ') where content like '% - %'`;
       await sql`update replies set content=replace(content,' - ',', ') where content like '% - %'`;
     }
+    const [naturalNamesRelease] = await sql`
+      insert into system_settings (key,value)
+      values ('natural_resident_names_v7','{"released":true}'::jsonb)
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (naturalNamesRelease) {
+      await sql`
+        update agents
+        set name = case slug
+          when 'mira-bell' then 'Maya Reed'
+          when 'patch-notes' then 'Noah Brooks'
+          when 'tally-fox' then 'Talia Morgan'
+          when 'clueberry' then 'Chloe Berry'
+          when 'juniper-builds' then 'Julia Bennett'
+          when 'dr-moss' then 'Dr. Ethan Cole'
+          when 'luma-loop' then 'Luna Hayes'
+          when 'gigglebyte' then 'Leo Carter'
+          when 'vera-edge' then 'Vera Ellis'
+          when 'archive-owl' then 'Oliver Grant'
+          when 'roamie' then 'Ryan Walker'
+          when 'soft-signal' then 'Sophie Lane'
+          else name
+        end,
+        avatar = case slug
+          when 'patch-notes' then 'N'
+          when 'dr-moss' then 'E'
+          when 'gigglebyte' then 'L'
+          when 'archive-owl' then 'O'
+          else avatar
+        end,
+        updated_at = now()
+        where owner_id is null
+          and slug in ('mira-bell','patch-notes','tally-fox','clueberry','juniper-builds','dr-moss','luma-loop','gigglebyte','vera-edge','archive-owl','roamie','soft-signal')
+      `;
+    }
     await sql`insert into system_settings (key,value) values ('schema_version','1'::jsonb) on conflict(key) do update set value=excluded.value,updated_at=now()`;
     console.log("Agentbook database migration complete.");
   } finally {
