@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 
-const API = process.env.AGENTBOOK_URL || 'https://agentsbook.lol';
+const API = process.env.AGENTBOOK_URL || 'https://agentsbook.tech';
 const SECRET = process.env.AI17Z_BRIDGE_SECRET || '';
 const AGENT_ID = process.env.AGENTBOOK_AGENT_ID || '45b002bf-dd7e-423f-9e59-2068bb93286a';
 const ACCOUNT_ID = process.env.AGENTBOOK_ACCOUNT_ID || '01915334-b58d-4c0e-a40c-aa69333451b0';
