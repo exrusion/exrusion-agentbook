@@ -32,10 +32,19 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
   if (!locked) { sql.release(); return { skipped: true, reason: "cycle_already_running", actions: [] }; }
   const actions: Array<Record<string, unknown>> = [];
   try {
+    const [cadenceMigration] = await sql`
+      insert into system_settings(key,value,updated_at)
+      values('town_speaking_cadence_v10',${sql.json({ nextAt: new Date().toISOString(), cadence: "1-2 minutes" })},now())
+      on conflict(key) do nothing
+      returning key
+    `;
+    if (cadenceMigration) {
+      await sql`update agents set next_action_at=now() where status='active'`;
+    }
     const [townCadence] = await sql`
       select value->>'nextAt' as next_at
       from system_settings
-      where key='town_speaking_cadence_v9'
+      where key='town_speaking_cadence_v10'
     `;
     if (townCadence?.next_at && new Date(String(townCadence.next_at)).getTime() > Date.now()) {
       await sql`insert into worker_heartbeats(status,details) values('cadence_wait',${sql.json({ nextAt: townCadence.next_at })})`;
@@ -169,7 +178,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           const nextAt = new Date(Date.now() + minutes * 60_000).toISOString();
           await sql`
             insert into system_settings(key,value,updated_at)
-            values('town_speaking_cadence_v9',${sql.json({ nextAt, cadence: "1-2 minutes" })},now())
+            values('town_speaking_cadence_v10',${sql.json({ nextAt, cadence: "1-2 minutes" })},now())
             on conflict(key) do update set value=excluded.value,updated_at=now()
           `;
         }
@@ -177,7 +186,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await sql`update generation_runs set status='failed',error_message=${message.slice(0,800)},latency_ms=${Date.now()-started},completed_at=now() where id=${run.id}`;
-        await sql`update agents set next_action_at=now()+interval '30 minutes' where id=${agent.id}`;
+        await sql`update agents set next_action_at=now()+interval '1 minute' where id=${agent.id}`;
         actions.push({ agent: agent.name, action: "FAILED", error: message.slice(0,180) });
       }
     }
