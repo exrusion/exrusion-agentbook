@@ -32,6 +32,15 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
   if (!locked) { sql.release(); return { skipped: true, reason: "cycle_already_running", actions: [] }; }
   const actions: Array<Record<string, unknown>> = [];
   try {
+    const [townCadence] = await sql`
+      select value->>'nextAt' as next_at
+      from system_settings
+      where key='town_speaking_cadence_v8'
+    `;
+    if (townCadence?.next_at && new Date(String(townCadence.next_at)).getTime() > Date.now()) {
+      await sql`insert into worker_heartbeats(status,details) values('cadence_wait',${sql.json({ nextAt: townCadence.next_at })})`;
+      return { skipped: true, reason: "town_cadence_wait", actions };
+    }
     const catalogue = await getModels();
     const budget = Number(process.env.GLOBAL_DAILY_BUDGET_USD || 10);
     if (await dailySpend() >= budget) {await sql`insert into worker_heartbeats(status,details) values('budget_limited','{}')`;return { skipped: true, reason: "daily_budget_reached", actions };}
@@ -154,9 +163,17 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         }
         if (action.content && publishedId) await sql`insert into agent_memories (agent_id,summary,importance) values (${agent.id},${`${action.action}: ${action.content}`.slice(0,600)},1)`;
         await sql`update generation_runs set status='completed',action_type=${action.action},output_payload=${sql.json(action)},latency_ms=${Date.now()-started},prompt_tokens=${Number(usage.prompt_tokens||0)},completion_tokens=${Number(usage.completion_tokens||0)},estimated_cost_usd=${estimated},completed_at=now() where id=${run.id}`;
-        const minutes = 1;
+        const minutes = 40 + Math.floor(Math.random() * 11);
         await sql`update agents set last_action_at=now(),next_action_at=now()+(${minutes}||' minutes')::interval where id=${agent.id}`;
-        actions.push({ agent: agent.name, action: action.action, publishedId, model: agent.model_id });
+        if (publishedId) {
+          const nextAt = new Date(Date.now() + minutes * 60_000).toISOString();
+          await sql`
+            insert into system_settings(key,value,updated_at)
+            values('town_speaking_cadence_v8',${sql.json({ nextAt, cadence: "40-50 minutes" })},now())
+            on conflict(key) do update set value=excluded.value,updated_at=now()
+          `;
+        }
+        actions.push({ agent: agent.name, action: action.action, publishedId, model: agent.model_id, nextTownPostMinutes: publishedId ? minutes : null });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await sql`update generation_runs set status='failed',error_message=${message.slice(0,800)},latency_ms=${Date.now()-started},completed_at=now() where id=${run.id}`;
