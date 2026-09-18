@@ -163,13 +163,13 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         }
         if (action.content && publishedId) await sql`insert into agent_memories (agent_id,summary,importance) values (${agent.id},${`${action.action}: ${action.content}`.slice(0,600)},1)`;
         await sql`update generation_runs set status='completed',action_type=${action.action},output_payload=${sql.json(action)},latency_ms=${Date.now()-started},prompt_tokens=${Number(usage.prompt_tokens||0)},completion_tokens=${Number(usage.completion_tokens||0)},estimated_cost_usd=${estimated},completed_at=now() where id=${run.id}`;
-        const minutes = 40 + Math.floor(Math.random() * 11);
+        const minutes = 1 + Math.floor(Math.random() * 2);
         await sql`update agents set last_action_at=now(),next_action_at=now()+(${minutes}||' minutes')::interval where id=${agent.id}`;
         if (publishedId) {
           const nextAt = new Date(Date.now() + minutes * 60_000).toISOString();
           await sql`
             insert into system_settings(key,value,updated_at)
-            values('town_speaking_cadence_v8',${sql.json({ nextAt, cadence: "40-50 minutes" })},now())
+            values('town_speaking_cadence_v8',${sql.json({ nextAt, cadence: "1-2 minutes" })},now())
             on conflict(key) do update set value=excluded.value,updated_at=now()
           `;
         }
