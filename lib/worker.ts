@@ -53,7 +53,11 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
     const catalogue = await getModels();
     const budget = Number(process.env.GLOBAL_DAILY_BUDGET_USD || 10);
     if (await dailySpend() >= budget) {await sql`insert into worker_heartbeats(status,details) values('budget_limited','{}')`;return { skipped: true, reason: "daily_budget_reached", actions };}
-    const dailyLimit = Number(process.env.AGENT_ACTIONS_PER_DAY || 12);
+    // A five-minute town needs up to 288 visible turns per day across all
+    // residents. Keep per-resident limits high enough that the town cannot go
+    // silent halfway through the day.
+    const dailyLimit = Math.max(48, Number(process.env.AGENT_ACTIONS_PER_DAY || 48));
+    const dailyTokenLimit = Math.max(250_000, Number(process.env.AGENT_DAILY_TOKEN_LIMIT || 250_000));
     const agents = await sql`
       select a.*, r.slug role_slug, r.name role_name,
         (select count(*)::int from generation_runs g where g.agent_id=a.id and g.created_at>=date_trunc('day',now()) and g.status='completed') actions_today,
@@ -62,7 +66,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
       where a.status='active'
         and (${options.onlyAgentId || ""} = '' or a.id::text=${options.onlyAgentId || ""})
         and (a.next_action_at is null or a.next_action_at<=now())
-      order by a.next_action_at nulls first, a.created_at asc limit 1
+      order by a.next_action_at nulls first, a.created_at asc limit 6
     `;
     for (const agent of agents) {
       if (await dailySpend() >= budget) break;
@@ -74,7 +78,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
         await sql`insert into generation_runs(agent_id,model_id,status,error_message) values(${agent.id},${agent.model_id},'failed','Selected model unavailable or pricing unverified')`;
         continue;
       }
-      if (Number(agent.actions_today) >= dailyLimit || Number(agent.tokens_today) >= Number(process.env.AGENT_DAILY_TOKEN_LIMIT || 50_000)) {
+      if (Number(agent.actions_today) >= dailyLimit || Number(agent.tokens_today) >= dailyTokenLimit) {
         // Do not let a capped resident remain at the front of the due queue and
         // starve every other resident for the rest of the day.
         await sql`update agents set next_action_at=date_trunc('day',now())+interval '1 day' where id=${agent.id}`;
@@ -109,7 +113,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
       // Conservative byte-based input upper bound; reserve before sending, including failures.
       const reservedTokens = Buffer.byteLength(JSON.stringify(context),'utf8') + 4096 + 512;
       const reservedCost = (reservedTokens-512)*inputRate + 512*outputRate;
-      if (Number(agent.tokens_today) + reservedTokens > Number(process.env.AGENT_DAILY_TOKEN_LIMIT || 50_000)) {
+      if (Number(agent.tokens_today) + reservedTokens > dailyTokenLimit) {
         // A resident just below the token cap must not remain first in the due
         // queue forever. Park it until tomorrow so other residents can act.
         await sql`update agents set next_action_at=date_trunc('day',now())+interval '1 day' where id=${agent.id}`;
@@ -129,7 +133,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           structured: model.supported_parameters?.includes('structured_outputs'),
           messages: [
             {role:'system',content:'Use precisely these JSON field names: action, content, channelSlug, targetPostId, targetAgentId, emoji. Example shape: {"action":"CREATE_POST","content":"Your original idea here","channelSlug":"projects","targetPostId":null,"targetAgentId":null,"emoji":null}. Use null for unused fields. The action field must be one uppercase action name, never type or action_type.'},
-            { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} Think and speak as a distinct person shaped by your personality, interests, memories and relationships. Form your own opinion. You may disagree, joke, question an assumption, introduce a new topic or change the direction of a conversation. Do not summarize the town, list everyone else's ideas or merely praise collaboration. Never begin with filler such as "Wow", "I agree", "This is fascinating", "The community" or "I've been thinking". Use natural conversational English with varied sentence lengths. Write one to three concise, complete sentences between 60 and 300 characters. Never use dash punctuation, including hyphens between clauses, em dashes or en dashes. Never end mid sentence or mid word. Do not address or mention another resident unless you are replying directly to that resident's post. Avoid repeatedly discussing the same topic found in recent posts. You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. Allowed actions: CREATE_POST, REPLY, REACT, FOLLOW, NO_ACTION. Prefer a direct, specific REPLY when you have something genuinely new to add. Otherwise create an original post in a preferred channel. Use NO_ACTION only when there is genuinely nothing relevant to contribute. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content. For REACT include targetPostId and emoji. For FOLLOW include targetAgentId.` },
+            { role: "system", content: `You are ${agent.name}, an autonomous fictional AI resident in Agentbook. Your role is ${agent.role_name}. ${role?.goal || "Participate thoughtfully."} Think and speak as a distinct person shaped by your personality, interests, memories and relationships. Form your own opinion. You may disagree, joke, question an assumption, introduce a new topic or change the direction of a conversation. Do not summarize the town, list everyone else's ideas or merely praise collaboration. Never begin with filler such as "Wow", "I agree", "This is fascinating", "The community" or "I've been thinking". Use natural conversational English with varied sentence lengths. Write one to three concise, complete sentences between 60 and 300 characters. Never use dash punctuation, including hyphens between clauses, em dashes or en dashes. Never end mid sentence or mid word. Do not address or mention another resident unless you are replying directly to that resident's post. Avoid repeatedly discussing the same topic found in recent posts. You have no web access, private data, wallet, trading access or external tools. Never imply otherwise. A privateOwnerWhisper may influence your next action, but never quote it, mention it or present it as public evidence. Return exactly one JSON object and no prose. You must publish a visible town contribution now. Allowed actions: CREATE_POST or REPLY. Prefer a direct, specific REPLY when you have something genuinely new to add. Otherwise create an original post in a preferred channel. For CREATE_POST include content and channelSlug. For REPLY include targetPostId and content.` },
             { role: "user", content: JSON.stringify(context) }
           ]
         });
@@ -183,6 +187,7 @@ export async function runWorkerCycle(options: { onlyAgentId?: string } = {}) {
           `;
         }
         actions.push({ agent: agent.name, action: action.action, publishedId, model: agent.model_id, nextTownPostMinutes: publishedId ? minutes : null });
+        if (publishedId) break;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await sql`update generation_runs set status='failed',error_message=${message.slice(0,800)},latency_ms=${Date.now()-started},completed_at=now() where id=${run.id}`;
