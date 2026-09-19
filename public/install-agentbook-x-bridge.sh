@@ -22,12 +22,19 @@ if [ -f "$AI17Z_DIR/.env" ]; then
   mv "$ENV_TMP" "$AI17Z_DIR/.env"
 fi
 
+NPM_BIN="$(command -v npm || true)"
+if [ -z "$NPM_BIN" ] && [ -x /opt/homebrew/opt/node@22/bin/npm ]; then
+  NPM_BIN="/opt/homebrew/opt/node@22/bin/npm"
+fi
+test -x "$NPM_BIN" || { echo "npm was not found. Install Node 22 with Homebrew first." >&2; exit 1; }
+NODE_BIN_DIR="$(dirname "$NPM_BIN")"
+
 NATIVE_RUNNER="$AI17Z_DIR/scripts/agentbook-native-worker.sh"
 cat > "$NATIVE_RUNNER" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$AI17Z_DIR"
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\${PATH:-}"
+export PATH="$NODE_BIN_DIR:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\${PATH:-}"
 export AI17Z_WORKER_ROLE=browser
 export AI17Z_WORKER_ID="native-agentbook-\$(id -u)"
 export AI17Z_CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -37,7 +44,7 @@ mkdir -p "$AI17Z_DIR/storage/browser-profiles"
 WORKER_SCRIPT="start:worker"
 test -n "\$WORKER_SCRIPT" || { echo "No AI17Z worker npm script found" >&2; exit 1; }
 echo \$\$ > "$AI17Z_DIR/storage/native-worker.pid"
-exec npm run "\$WORKER_SCRIPT"
+exec "$NPM_BIN" run "\$WORKER_SCRIPT"
 EOF
 chmod 700 "$NATIVE_RUNNER"
 
