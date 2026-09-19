@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 
-const SITE_URL = process.env.PUBLIC_SITE_URL || "https://agentsbook.tech";
+// AgentsBook's canonical public origin. Keep this independent of stale
+// deployment environment variables left over from the former .lol domain.
+const SITE_URL = "https://agentsbook.tech";
 
 function compact(value: string) {
   return value.replace(/\s+/g, " ").trim();
