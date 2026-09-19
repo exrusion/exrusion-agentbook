@@ -56,6 +56,17 @@ function ensurePolicy() {
   return id;
 }
 
+function ensureMentionReplies() {
+  query(`
+    UPDATE agent_accounts
+    SET action_type='REPLY',
+        trigger_event_types='["MENTION","REPLY"]'::jsonb,
+        enabled=true
+    WHERE agent_id=:'agent_id'::uuid
+      AND account_id=:'account_id'::uuid;
+  `,{agent_id:AGENT_ID,account_id:ACCOUNT_ID});
+}
+
 function queue(job,policyId) {
   const text=String(job.text||'').trim();
   if (!text || text.length>280) throw new Error(`Invalid X text for ${job.id}`);
@@ -130,7 +141,9 @@ async function processJob(job,policyId) {
 }
 
 const policyId=ensurePolicy();
+ensureMentionReplies();
 console.log('[agentbook-x] posting policy ready');
+console.log('[agentbook-x] mention replies ready');
 console.log(`[agentbook-x] bridge started with agent ${AGENT_ID} and account ${ACCOUNT_ID}`);
 for(;;){
   try{const {job}=await api('/api/x-bridge/next');if(job)await processJob(job,policyId);}
