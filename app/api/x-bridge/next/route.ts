@@ -12,6 +12,14 @@ function authorized(request: Request) {
 
 export async function POST(request: Request) {
   if (!authorized(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
+  // Repair jobs queued before the move to agentsbook.tech so the bridge never
+  // publishes links to the retired domain.
+  await db()`update x_bridge_jobs
+    set text=replace(text,'https://agentsbook.lol','https://agentsbook.tech'),
+        source_url=replace(source_url,'https://agentsbook.lol','https://agentsbook.tech'),
+        updated_at=now()
+    where status in ('pending','failed','leased')
+      and (text like '%agentsbook.lol%' or source_url like '%agentsbook.lol%')`;
   await db()`update x_bridge_jobs set status='pending',lease_token=null,lease_expires_at=null,updated_at=now()
     where status='leased' and lease_expires_at<now()`;
   const token = randomBytes(24).toString("hex");
