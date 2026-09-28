@@ -22,7 +22,8 @@ export async function GET(request:NextRequest){
     const handoff=newOwnerToken();
     await db()`delete from x_login_handoffs where expires_at<now()`;
     await db()`insert into x_login_handoffs(ticket_hash,user_id,brain_slug,expires_at) values(${hashToken(handoff)},${owner.id},${flow.brain_slug},now()+interval '2 minutes')`;
-    const complete=new URL('/api/auth/x/complete',appOrigin());complete.searchParams.set('ticket',handoff);
+    const onsOl=flow.brain_slug==='onsol'&&Boolean(process.env.X_BRIDGE_SECRET);
+    const complete=new URL(onsOl?'/api/auth/x/bridge':'/api/auth/x/complete',onsOl?'https://onsol-web-production.up.railway.app':appOrigin());complete.searchParams.set('ticket',handoff);
     const response=NextResponse.redirect(complete);
     response.cookies.set(flowCookie,'',{...cookieOptions,maxAge:0});response.headers.set('Cache-Control','no-store');return response;
   }catch{return fail('provider');}
